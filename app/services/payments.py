@@ -2,9 +2,12 @@ from uuid import UUID
 
 from sqlalchemy.orm import Session
 
+from app.repositories.kafka_events import KafkaEventRepository
 from app.repositories.outbox import OutboxRepository
 from app.repositories.payments import PaymentRepository
+from app.repositories.webhook_receipts import WebhookReceiptRepository
 from app.schemas import Payment, PaymentCreate, PaymentSucceededData
+from app.services.outbox import OutboxSnapshot, event_payload
 
 
 class IdempotencyConflictError(Exception):
@@ -44,3 +47,16 @@ class PaymentService:
             if payment is None:
                 raise PaymentNotFoundError
             return Payment.model_validate(payment, from_attributes=True)
+
+    def get_outbox_event(self, payment_id: UUID) -> OutboxSnapshot | None:
+        with self.session.begin():
+            event = self.outbox.get_for_payment(payment_id)
+            if event is None:
+                return None
+            return OutboxSnapshot(
+                event=event_payload(event),
+                published_at=event.published_at,
+                received_at=WebhookReceiptRepository(self.session).received_at(event.id),
+                kafka_published_at=event.kafka_published_at,
+                kafka_groups=KafkaEventRepository(self.session).groups_for_event(event.id),
+            )

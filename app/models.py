@@ -6,9 +6,11 @@ from sqlalchemy import (
     CheckConstraint,
     DateTime,
     ForeignKey,
+    Index,
     Text,
     UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
@@ -41,6 +43,18 @@ class OutboxEventRow(Base):
             "payment_id", "event_type", name="outbox_events_payment_id_event_type_key"
         ),
         CheckConstraint("event_type = 'payment.succeeded'", name="outbox_events_event_type_check"),
+        Index(
+            "outbox_events_unpublished_idx",
+            "occurred_at",
+            "id",
+            postgresql_where=text("published_at IS NULL"),
+        ),
+        Index(
+            "outbox_events_kafka_unpublished_idx",
+            "occurred_at",
+            "id",
+            postgresql_where=text("kafka_published_at IS NULL"),
+        ),
     )
 
     id: Mapped[UUID] = mapped_column(primary_key=True)
@@ -52,3 +66,29 @@ class OutboxEventRow(Base):
         DateTime(timezone=True), server_default=func.now()
     )
     payload: Mapped[dict] = mapped_column(JSONB)
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    kafka_published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class WebhookReceiptRow(Base):
+    __tablename__ = "webhook_receipts"
+
+    event_id: Mapped[UUID] = mapped_column(primary_key=True)
+    payment_id: Mapped[UUID]
+    received_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class KafkaConsumerEventRow(Base):
+    __tablename__ = "kafka_consumer_events"
+    __table_args__ = (Index("kafka_consumer_events_event_id_idx", "event_id"),)
+
+    consumer_group: Mapped[str] = mapped_column(Text, primary_key=True)
+    event_id: Mapped[UUID] = mapped_column(primary_key=True)
+    partition: Mapped[int]
+    offset: Mapped[int] = mapped_column(BigInteger)
+    payload: Mapped[dict] = mapped_column(JSONB)
+    processed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )

@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Franken Stack · Лаборатория платежей</title>
+  <link rel="stylesheet" href="/lab/assets/lab.css">
+  <script type="module" src="/lab/assets/lab.js?v=2"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="container topbar-inner">
+      <span class="brand">Franken Stack</span>
+      <a href="/docs">Swagger <span aria-hidden="true">↗</span></a>
+    </div>
+  </header>
+
+  <main class="container">
+    <h1>Лаборатория платежей</h1>
+    <p class="intro">Проверяй повторы запросов, гонку за строку платежа и отправку вебхука.</p>
+
+    <div class="workspace">
+      <div class="controls">
+        <section class="panel" aria-labelledby="create-title">
+          <div class="panel-heading">
+            <h2 id="create-title">Создание платежа</h2>
+            <code>POST /payments</code>
+          </div>
+          <form id="create-form">
+            <fieldset id="create-controls">
+              <div class="field-grid">
+                <label>Сумма в мин. единицах
+                  <input id="amount" type="text" inputmode="numeric" pattern="-?(0|[1-9][0-9]*)" value="15000" required>
+                </label>
+                <label>Валюта
+                  <input id="currency" value="RUB" maxlength="3" required>
+                </label>
+              </div>
+              <label for="key">Idempotency-Key</label>
+              <div class="input-action">
+                <input id="key" maxlength="128" autocomplete="off" required>
+                <button type="button" id="new-key">Новый ключ</button>
+              </div>
+              <button class="primary wide" type="submit">Отправить POST /payments</button>
+            </fieldset>
+          </form>
+          <p class="hint">Повтори с тем же ключом для <code>200</code>. Измени сумму с тем же ключом для <code>409</code>.</p>
+        </section>
+
+        <section class="panel" aria-labelledby="payment-title">
+          <div class="panel-heading">
+            <h2 id="payment-title">Подтверждение</h2>
+            <output id="payment-status" class="status" aria-live="polite">Статус неизвестен</output>
+          </div>
+          <label for="payment-id">ID платежа</label>
+          <input id="payment-id" placeholder="Появится после создания" autocomplete="off" spellcheck="false">
+          <div class="actions">
+            <button type="button" id="succeed" disabled>Подтвердить</button>
+            <button type="button" id="race" disabled>Два запроса сразу</button>
+          </div>
+          <p class="hint">Для проверки гонки используй платёж в статусе <code>pending</code>.</p>
+        </section>
+
+        <section class="panel" aria-labelledby="outbox-title">
+          <div class="panel-heading">
+            <h2 id="outbox-title">Outbox и вебхук</h2>
+            <button type="button" id="read-outbox" disabled>Обновить</button>
+          </div>
+          <p id="outbox-status" class="hint" role="status">Выбери платёж, чтобы прочитать его события.</p>
+          <p id="kafka-status" class="hint" role="status">Kafka · событие появится после подтверждения платежа</p>
+          <div class="actions">
+            <button type="button" id="send-webhook" disabled>Отправить вручную</button>
+            <button type="button" id="fail-webhook" disabled>Ручной тест 503</button>
+          </div>
+          <div class="actions">
+            <a class="queue-link" href="http://localhost:15672/#/queues/%2F/webhook.delivery" target="_blank" rel="noopener">RabbitMQ ↗</a>
+            <a class="queue-link" href="http://localhost:8082/" target="_blank" rel="noopener">Kafka UI ↗</a>
+          </div>
+        </section>
+      </div>
+
+      <section class="panel journal" aria-labelledby="journal-title">
+        <div class="panel-heading">
+          <h2 id="journal-title">Журнал запросов</h2>
+          <button type="button" id="clear" disabled>Очистить</button>
+        </div>
+        <p id="empty-journal" class="empty">Отправь запрос. Здесь появятся статус, время ответа и JSON.</p>
+        <div id="journal" aria-live="polite"></div>
+      </section>
+    </div>
+  </main>
+
+  <template id="request-row">
+    <details class="entry">
+      <summary>
+        <span class="http-status status"></span>
+        <code class="route"></code>
+        <span class="duration"></span>
+      </summary>
+      <div class="exchange">
+        <section class="sent"><h3>Запрос</h3><pre></pre></section>
+        <section><h3>Ответ</h3><pre class="received"></pre></section>
+      </div>
+    </details>
+  </template>
+</body>
+</html>

@@ -2,17 +2,12 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Response, status
-from sqlalchemy.orm import Session
 
-from app.core.db import get_session
+from app.routers.dependencies import get_payment_service
 from app.schemas import Payment, PaymentCreate
 from app.services.payments import IdempotencyConflictError, PaymentNotFoundError, PaymentService
 
 router = APIRouter(prefix="/payments")
-
-
-def get_payment_service(session: Annotated[Session, Depends(get_session)]) -> PaymentService:
-    return PaymentService(session)
 
 
 @router.post(
