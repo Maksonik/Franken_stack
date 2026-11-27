@@ -1,0 +1,57 @@
+services:
+  db:
+    image: postgres:18-alpine
+    environment: &postgres_env
+      POSTGRES_DB: ${POSTGRES_DB:-payments}
+      POSTGRES_USER: ${POSTGRES_USER:-payments}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Copy .env.template to .env and set POSTGRES_PASSWORD}
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+  api:
+    image: franken-stack-lab:local
+    build: .
+    environment: &database_env
+      <<: *postgres_env
+      POSTGRES_HOST: db
+      POSTGRES_PORT: "5432"
+      DATABASE_URL: ${DATABASE_URL:-}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    ports:
+      - "127.0.0.1:8000:8000"
+    healthcheck: &http_healthcheck
+      test: ["CMD", "python", "-c", "from urllib.request import urlopen; urlopen('http://127.0.0.1:8000/openapi.json', timeout=2).close()"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+  migrate:
+    image: franken-stack-lab:local
+    pull_policy: never
+    environment: *database_env
+    depends_on:
+      db:
+        condition: service_healthy
+    command: ["alembic", "upgrade", "head"]
+
+  partner:
+    image: franken-stack-lab:local
+    pull_policy: never
+    depends_on:
+      - api
+    command: ["uvicorn", "app.partner:app", "--host", "0.0.0.0", "--port", "8000"]
+    ports:
+      - "127.0.0.1:8001:8000"
+    healthcheck: *http_healthcheck
+
+volumes:
+  postgres_data:
